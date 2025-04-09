@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Load Balanced System with File Upload</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        button { padding: 8px 16px; background: #007bff; color: white; border: none; cursor: pointer; }
+        input[type="file"] { margin: 10px 0; }
+        .server-list { margin: 10px 0; }
+        .server-item { margin: 5px 0; padding: 5px; background: #f5f5f5; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CDN(Content Delivery Network) System</h1>
+        
+        <div class="section">
+            <h2>Available Servers</h2>
+            <div id="serverList" class="server-list"></div>
+            <button onclick="refreshServers()">Refresh Server List</button>
+        </div>
+
+        <div class="section">
+            <h2>Upload File to Specific Server</h2>
+            <div id="uploadSection"></div>
+        </div>
+
+        <div class="section">
+            <h2>Load Balanced Content</h2>
+            <button onclick="fetchContent()">Fetch Balanced Content</button>
+            <div id="content"></div>
+        </div>
+    </div>
+
+    <script>
+        async function fetchContent() {
+            try {
+                document.getElementById('content').innerHTML = 'Loading...';
+                const response = await fetch('http://localhost:8080');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const html = await response.text();
+                document.getElementById('content').innerHTML = html;
+            } catch (error) {
+                document.getElementById('content').innerHTML = 
+                    `<p style="color: red">Error: ${error.message}</p>`;
+            }
+        }
+
+        async function refreshServers() {
+            try {
+                const response = await fetch('http://localhost:8080/servers');
+                const servers = await response.json();
+                
+                // Update server list
+                const serverList = document.getElementById('serverList');
+                serverList.innerHTML = servers.map(server => `
+                    <div class="server-item">
+                        Port: ${server.port} - 
+                        <a href="${server.url}" target="_blank">Visit Server</a>
+                    </div>
+                `).join('');
+
+                // Update upload section
+                const uploadSection = document.getElementById('uploadSection');
+                uploadSection.innerHTML = servers.map(server => `
+                    <div>
+                        <h3>Upload to Port ${server.port}</h3>
+                        <form onsubmit="uploadToServer(event, ${server.port})">
+                            <input type="file" id="file${server.port}">
+                            <button type="submit">Upload</button>
+                        </form>
+                    </div>
+                `).join('');
+            } catch (error) {
+                showError(error);
+            }
+        }
+
+        async function uploadToServer(event, port) {
+            event.preventDefault();
+            const fileInput = document.getElementById(`file${port}`);
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a file');
+                return;
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await fetch(`http://localhost:${port}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Upload failed: ${await response.text()}`);
+                }
+
+                const result = await response.text();
+                alert(`Upload successful! ${result}`);
+                fileInput.value = '';
+            } catch (error) {
+                alert(`Upload error: ${error.message}`);
+            }
+        }
+
+        function showError(error) {
+            alert(`Error: ${error.message}`);
+        }
+
+        // Initial load
+        refreshServers();
+    </script>
+</body>
+</html>
